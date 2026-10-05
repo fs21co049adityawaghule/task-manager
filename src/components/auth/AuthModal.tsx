@@ -52,8 +52,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             data: { full_name: fullName.trim() || email.split('@')[0] },
           },
         });
-        if (signUpErr) throw signUpErr;
-        setMessage('Account created successfully! Check your email for confirmation or login now.');
+        
+        // Strict error handling
+        if (signUpErr) {
+          throw signUpErr;
+        }
+
+        // Handle fake success due to "Prevent Email Enumeration" being ON
+        if (!data.session && !data.user) {
+          throw new Error('Signup failed. This email may already be registered or you have hit the rate limit. Please try logging in instead.');
+        }
+
+        // If data.user exists but data.session is null, email confirmation is required
+        if (data.user && !data.session) {
+          setMessage('Account created successfully! Check your email for confirmation.');
+        } else if (data.session) {
+          // If session exists, user is immediately logged in
+          onAuthStateChange();
+          onClose();
+        }
       } else {
         const { error: signInErr } = await supabase.auth.signInWithPassword({
           email,
@@ -81,7 +98,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin },
+        options: { 
+          redirectTo: 'https://chrono-flow-task-manager-31jjwkfs7-adityas-projects-fca2eabf.vercel.app/' 
+        },
       });
       if (error) throw error;
       // After redirect Supabase will handle the session; we can close the modal.
